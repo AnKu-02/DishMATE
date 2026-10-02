@@ -10,14 +10,14 @@ def main():
     parser.add_argument("image")
     args = parser.parse_args()
     import cv2
-    from main_real import load_model, predict_frame
+    from main_real import load_model, predict_details
 
     frame = cv2.imread(args.image)
     if frame is None:
         raise RuntimeError(f"Cannot read image: {args.image}")
     with redirect_stdout(sys.stderr):
-        label = predict_frame(frame, load_model())
-    print(json.dumps({"label": label, "image": args.image}))
+        result = predict_details(frame, load_model())
+    print(json.dumps({**result, "image": args.image}))
 
 
 if __name__ == "__main__":

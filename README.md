@@ -79,7 +79,24 @@ These commands print clean/dirty and never request robot movement. Accuracy stil
 needs evaluation with representative plates. The existing `--sort` mode has not
 been migrated to this two-environment workflow or validated on the real robot.
 
-## Folders
+## Evaluate predictions
+
+Supply the actual label when testing a plate:
+
+```bash
+python main_real.py --ros --classify --expected clean
+python main_real.py --image captures/2026-10-02/plate_2.png --expected dirty
+```
+
+Each successful `--classify` or `--image` run appends a row to
+`captures/results.csv`: timestamp, image path, prediction, dirty score, expected
+label, and whether they match. Without `--expected`, the expected and match fields
+stay blank. Rechecking an image adds a new row. The score is the model's raw
+sigmoid output: above 0.5 means dirty, otherwise clean; it is not a validated
+confidence percentage. The expected label never changes the prediction.
+The CSV is local and excluded from Git along with captures.
+
+## Project folders
 
 - `captures/`: camera images.
 - `tests/`: automated tests and diagnostic scripts.

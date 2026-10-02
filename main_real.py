@@ -7,6 +7,7 @@ from pathlib import Path
 import time
 from capture_storage import save_capture
 from settings import configure_ros
+from prediction_log import log_prediction
 
 IMG_SIZE = 224
 HERE = Path(__file__).resolve().parent
@@ -59,6 +60,10 @@ def check_model():
 
 
 def predict_frame(frame, model):
+    return predict_details(frame, model)["label"]
+
+
+def predict_details(frame, model):
     import cv2
     import numpy as np
 
@@ -66,7 +71,19 @@ def predict_frame(frame, model):
     img = np.reshape(img, (1, IMG_SIZE, IMG_SIZE, 3))
     p = float(model.predict(img, verbose=0)[0][0])
     print(f"Prediction value = {p:.4f}")
-    return "dirty" if p > 0.5 else "clean"
+    if not np.isfinite(p) or not 0 <= p <= 1:
+        raise RuntimeError("Model returned an invalid score")
+    return {"label": "dirty" if p > 0.5 else "clean", "score": p}
+
+
+def classify_and_log(path, expected=None):
+    from classifier_client import classify_image
+    result = classify_image(path)
+    print(f"Result: {result['label']} | Dirty score: {result['score']:.4f}")
+    if expected is not None:
+        print(f"Expected: {expected} | Match: {result['label'] == expected}")
+    log_path = log_prediction(path, result, expected)
+    print(f"Logged: {log_path}")
 
 
 def camera_source(value):
@@ -181,6 +198,8 @@ def main(argv=None):
     modes.add_argument("--sort", action="store_true", help="classify and request real robot motion")
     modes.add_argument("--classify", action="store_true", help="capture and classify in Python 3.10; no robot motion")
     modes.add_argument("--image", type=Path, help="classify an existing image without camera or robot access")
+    parser.add_argument("--expected", choices=("clean", "dirty"),
+                        help="actual label for evaluation; requires --classify or --image")
     parser.add_argument("--ros", action="store_true", help="use the camera topic in settings.json")
     parser.add_argument("--camera", type=camera_source, default=CAMERA_SOURCE,
                         help="camera index (0, 1, ...) or network stream URL")
@@ -197,11 +216,12 @@ def main(argv=None):
     parser.add_argument("--output", type=Path,
                         help="optional image path; default: captures/YYYY-MM-DD/<item>_<number>.png")
     args = parser.parse_args(argv)
+    if args.expected is not None and not (args.classify or args.image):
+        parser.error("--expected requires --classify or --image")
     if args.ros and not args.ros_topic:
         args.ros_topic = configure_ros()["camera_topic"]
     if args.image:
-        from classifier_client import classify_image
-        print("Result:", classify_image(args.image)["label"])
+        classify_and_log(args.image, args.expected)
         return
     if args.ros_topic and (args.preview or args.width or args.height or args.backend != "auto"):
         parser.error("--ros-topic does not support preview, resolution or USB backend options; "
@@ -221,8 +241,7 @@ def main(argv=None):
     output = save_capture(frame, item=args.item, output=args.output)
     print(f"Saved: {output}")
     if args.classify:
-        from classifier_client import classify_image
-        print("Result:", classify_image(output)["label"])
+        classify_and_log(output, args.expected)
         return
     if not args.sort:
         print("Camera-only check complete. No classification or motion SDK connection.")
