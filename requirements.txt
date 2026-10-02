@@ -1,0 +1,11 @@
+# Libraries needed by main_real.py (neural network + camera).
+# Versions are those from the PC where the program ran and loaded the weights.
+# pip installs their dependencies (h5py, ml_dtypes, protobuf, ...) automatically.
+tensorflow==2.21.0
+keras==3.12.1
+numpy==2.2.6
+opencv-python==5.0.0.93
+
+# NOT installed with pip from here:
+# NeuraPy (NEURA Robotics Python SDK) comes from the NEURA Partner Hub.
+# Install it as described by NEURA.

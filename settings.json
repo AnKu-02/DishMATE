@@ -1,0 +1,6 @@
+{
+  "ros_master_uri": "http://192.168.2.14:11311",
+  "ros_ip": "192.168.2.99",
+  "camera_topic": "/camera/color/image_raw",
+  "classifier_python": "/root/.venvs/dishwashing-classifier/bin/python"
+}
