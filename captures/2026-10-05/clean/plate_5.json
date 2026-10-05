@@ -1,0 +1,24 @@
+{
+  "image": "plate_5.png",
+  "label": "clean",
+  "plate_id": "plate_05",
+  "object_type": "plate",
+  "class_name": "clean_plate",
+  "session": "360bb6ed51f644af93491b489b24a758",
+  "topic": "/camera/color/image_raw",
+  "captured_at": "2026-10-05T10:24:27.577605+02:00",
+  "image_width": 640,
+  "image_height": 480,
+  "bounding_box": {
+    "format": "xywh",
+    "units": "pixels",
+    "coordinates": [
+      179,
+      185,
+      211,
+      191
+    ],
+    "object_type": "plate"
+  },
+  "annotated_at": "2026-10-05T10:24:51.440010+02:00"
+}

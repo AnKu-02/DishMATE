@@ -1,0 +1,24 @@
+{
+  "image": "plate_2.png",
+  "label": "dirty",
+  "plate_id": "plate_01",
+  "object_type": "plate",
+  "class_name": "dirty_plate",
+  "session": "247a037f0ae54325896abc4cfecada84",
+  "topic": "/camera/color/image_raw",
+  "captured_at": "2026-10-05T12:39:56.823103+02:00",
+  "image_width": 640,
+  "image_height": 480,
+  "bounding_box": {
+    "format": "xywh",
+    "units": "pixels",
+    "coordinates": [
+      237,
+      13,
+      115,
+      136
+    ],
+    "object_type": "plate"
+  },
+  "annotated_at": "2026-10-05T12:40:03.835662+02:00"
+}
