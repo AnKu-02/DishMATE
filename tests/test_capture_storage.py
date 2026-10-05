@@ -11,6 +11,18 @@ from capture_storage import save_capture
 
 
 class StorageTests(unittest.TestCase):
+    def test_label_folders_keep_separate_numbering(self):
+        frame = np.zeros((12, 16, 3), dtype=np.uint8)
+        with TemporaryDirectory() as tmp, patch("capture_storage.datetime") as clock:
+            clock.now.return_value = datetime(2026, 10, 5)
+            dirty = save_capture(frame, root=tmp, label="dirty")
+            clean = save_capture(frame, root=tmp, label="clean")
+            second = save_capture(frame, root=tmp, label="dirty")
+            self.assertEqual(dirty.relative_to(tmp), Path("2026-10-05/dirty/plate_1.png"))
+            self.assertEqual(clean.relative_to(tmp), Path("2026-10-05/clean/plate_1.png"))
+            self.assertEqual(second.name, "plate_2.png")
+            self.assertTrue(dirty.exists())
+
     def test_numbering_dates_and_image_roundtrip(self):
         frame = np.full((12, 16, 3), 80, dtype=np.uint8)
         with TemporaryDirectory() as tmp, patch("capture_storage.datetime") as clock:

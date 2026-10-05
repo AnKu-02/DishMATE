@@ -3,3 +3,4 @@ __pycache__/
 last_capture.png
 DishMATE/
 training_runs/
+datasets/

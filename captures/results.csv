@@ -9,3 +9,4 @@ timestamp,image,predicted,dirty_score,expected,match
 2026-10-03T11:23:45+02:00,captures/2026-10-03/plate_4.png,clean,0.04607195034623146,,
 2026-10-03T11:24:22+02:00,captures/2026-10-03/plate_5.png,clean,0.04217047989368439,,
 2026-10-03T11:24:41+02:00,captures/2026-10-03/plate_6.png,dirty,0.8892428278923035,,
+2026-10-05T17:49:45+02:00,captures/2026-10-05/plate_11.png,dirty,0.5184084177017212,,

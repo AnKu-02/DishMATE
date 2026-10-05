@@ -1,0 +1,58 @@
+{
+  "schema_version": 2,
+  "image": "plate_1.png",
+  "image_width": 640,
+  "image_height": 480,
+  "objects": [
+    {
+      "plate_id": "plate_61",
+      "label": "dirty",
+      "object_type": "plate",
+      "class_name": "dirty_plate",
+      "bounding_box": {
+        "format": "xywh",
+        "units": "pixels",
+        "coordinates": [
+          49,
+          362,
+          136,
+          118
+        ]
+      }
+    },
+    {
+      "plate_id": "plate_62",
+      "label": "clean",
+      "object_type": "plate",
+      "class_name": "clean_plate",
+      "bounding_box": {
+        "format": "xywh",
+        "units": "pixels",
+        "coordinates": [
+          133,
+          243,
+          122,
+          109
+        ]
+      }
+    },
+    {
+      "plate_id": "plate_63",
+      "label": "dirty",
+      "object_type": "plate",
+      "class_name": "dirty_plate",
+      "bounding_box": {
+        "format": "xywh",
+        "units": "pixels",
+        "coordinates": [
+          295,
+          306,
+          120,
+          124
+        ]
+      }
+    }
+  ],
+  "all_dishes_reviewed": true,
+  "annotated_at": "2026-10-05T18:08:15.191751+02:00"
+}

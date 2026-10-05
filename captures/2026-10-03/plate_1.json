@@ -1,0 +1,17 @@
+{
+  "image": "plate_1.png",
+  "image_width": 640,
+  "image_height": 480,
+  "bounding_box": {
+    "format": "xywh",
+    "units": "pixels",
+    "coordinates": [
+      0,
+      310,
+      121,
+      144
+    ],
+    "object_type": "plate"
+  },
+  "annotated_at": "2026-10-05T13:29:30.042285+02:00"
+}

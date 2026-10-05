@@ -6,16 +6,20 @@ import re
 CAPTURES_DIR = Path(__file__).resolve().parent / "captures"
 
 
-def save_capture(frame, item="plate", output=None, root=None):
+def save_capture(frame, item="plate", output=None, root=None, label=None):
     import cv2
 
     if item not in ("plate", "cup"):
         raise ValueError("Item must be plate or cup")
+    if label not in (None, "clean", "dirty"):
+        raise ValueError("Label must be clean or dirty")
     explicit = output is not None
     if explicit:
         path = Path(output).resolve()
     else:
         folder = Path(root if root is not None else CAPTURES_DIR) / datetime.now().strftime("%Y-%m-%d")
+        if label is not None:
+            folder = folder / label
         folder.mkdir(parents=True, exist_ok=True)
         pattern = re.compile(rf"{item}_(\d+)\.png")
         numbers = [int(match.group(1)) for entry in folder.iterdir()

@@ -8,6 +8,7 @@ import sys
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image")
+    parser.add_argument("--weights", help="optional alternative CNN weights; default remains the original model")
     args = parser.parse_args()
     import cv2
     from main_real import load_model, predict_details
@@ -16,7 +17,7 @@ def main():
     if frame is None:
         raise RuntimeError(f"Cannot read image: {args.image}")
     with redirect_stdout(sys.stderr):
-        result = predict_details(frame, load_model())
+        result = predict_details(frame, load_model(args.weights))
     print(json.dumps({**result, "image": args.image}))
 
 

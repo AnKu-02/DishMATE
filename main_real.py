@@ -16,7 +16,7 @@ CAMERA_SOURCE = 0
 CONFIRM_BEFORE_MOVE = True
 
 
-def load_model():
+def load_model(weights_path=None):
     from tensorflow.keras.applications import MobileNetV2
     from tensorflow.keras.layers import GlobalAveragePooling2D, Dropout, Dense
     from tensorflow.keras.models import Model
@@ -28,8 +28,9 @@ def load_model():
     x = GlobalAveragePooling2D()(base.output)
     x = Dropout(0.5)(x)
     model = Model(inputs=base.input, outputs=Dense(1, activation="sigmoid")(x))
-    model.load_weights(str(WEIGHTS_PATH))
-    print(f"AI model loaded: {WEIGHTS_PATH}")
+    selected_weights = Path(weights_path) if weights_path is not None else WEIGHTS_PATH
+    model.load_weights(str(selected_weights))
+    print(f"AI model loaded: {selected_weights}")
     return model
 
 
