@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MAiRA Workcell</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/"><span class="brand-mark" aria-hidden="true"></span>MAiRA Workcell</a>
+    <nav class="crumb" id="crumb" aria-label="Breadcrumb"></nav>
+    <span class="conn" id="conn" hidden>Backend offline</span>
+  </header>
+  <main id="app"></main>
+
+  <template id="view-home">
+    <section class="home">
+      <h1>Choose a use case</h1>
+      <p class="lede">Each use case runs a taught robot sequence with live camera feedback.</p>
+      <div class="usecases" id="usecases"></div>
+    </section>
+  </template>
+
+  <template id="view-dishwashing">
+    <section class="dw">
+      <div class="col-main">
+        <div class="card camera-card">
+          <div class="camera">
+            <img id="stream" alt="Live view from the robot camera">
+            <div class="camera-offline" id="camera-offline">Waiting for camera…</div>
+            <span class="live" id="live"><i></i>Live</span>
+          </div>
+        </div>
+
+        <div class="card control-card">
+          <div class="status-row">
+            <span class="status" id="status" data-status="idle">Idle</span>
+            <span class="step" id="step">Ready</span>
+            <span class="cycle" id="cycle"></span>
+          </div>
+          <div class="buttons">
+            <button class="btn btn-primary" id="btn-start" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>Start</button>
+            <button class="btn" id="btn-pause" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg><span>Pause</span></button>
+            <button class="btn btn-danger" id="btn-stop" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h12v12H6z"/></svg>Stop</button>
+          </div>
+          <div class="alert" id="message" hidden></div>
+          <p class="hint">Pause holds the robot before its next move. Stop finishes the plate in the gripper,
+            then returns to the observe pose. Keep the emergency stop within reach.</p>
+        </div>
+      </div>
+
+      <aside class="col-side">
+        <div class="card">
+          <h2>Latest plate</h2>
+          <div class="verdict">
+            <span class="chip" id="verdict" data-label="">No plate yet</span>
+            <span class="muted" id="latest-meta"></span>
+          </div>
+          <div class="meter" aria-hidden="true">
+            <div class="meter-track">
+              <div class="meter-fill" id="meter-fill"></div>
+              <div class="meter-cut" id="meter-cut"></div>
+            </div>
+            <div class="meter-scale"><span>Clean</span><span id="score">Dirty score —</span><span>Dirty</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>This session</h2>
+            <button class="link" id="btn-reset" type="button">Reset</button>
+          </div>
+          <div class="stats">
+            <div class="stat"><span class="num" id="n-clean">0</span><span class="lab"><i class="dot dot-clean"></i>Clean</span></div>
+            <div class="stat"><span class="num" id="n-dirty">0</span><span class="lab"><i class="dot dot-dirty"></i>Dirty</span></div>
+            <div class="stat"><span class="num" id="n-total">0</span><span class="lab">Total</span></div>
+          </div>
+          <div class="ratio" aria-hidden="true"><span id="ratio-clean"></span><span id="ratio-dirty"></span></div>
+        </div>
+
+        <div class="card">
+          <h2>History</h2>
+          <ol class="history" id="history"></ol>
+          <p class="empty" id="history-empty">Scanned plates appear here.</p>
+        </div>
+
+        <div class="card">
+          <h2>Sequence</h2>
+          <ol class="sequence" id="sequence"></ol>
+        </div>
+      </aside>
+    </section>
+  </template>
+
+  <script src="/app.js"></script>
+</body>
+</html>

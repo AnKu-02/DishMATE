@@ -2,5 +2,14 @@
   "ros_master_uri": "http://192.168.2.14:11311",
   "ros_ip": "192.168.2.99",
   "camera_topic": "/camera/color/image_raw",
-  "classifier_python": "/root/.venvs/dishwashing-classifier/bin/python"
+  "classifier_python": "/root/.venvs/dishwashing-classifier/bin/python",
+  "sort_points": {
+    "observe": "GP156",
+    "picks": ["GP157", "GP163"],
+    "lift": "GP161",
+    "via": "GP165",
+    "drop": "GP164",
+    "clean_place": null,
+    "dirty_place": null
+  }
 }

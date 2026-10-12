@@ -190,6 +190,12 @@ These commands print clean/dirty and never request robot movement. Accuracy stil
 needs evaluation with representative plates. The existing `--sort` mode has not
 been migrated to this two-environment workflow or validated on the real robot.
 
+## Workcell web UI
+
+`python -m ui.backend.server`, then open <http://localhost:8080>: live camera, Start /
+Pause / Stop, and clean/dirty results for the dishwashing use case. See
+[ui/README.md](ui/README.md).
+
 ## Evaluate predictions
 
 Supply the actual label when testing a plate:
