@@ -21,7 +21,7 @@ USE_CASES = [
 ]
 
 
-def make_handler(camera, sessions):
+def make_handler(camera, sessions, joints=None):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, fmt, *args):  # keep the terminal for robot messages
             pass
@@ -44,6 +44,8 @@ def make_handler(camera, sessions):
                 return self._send(200, session.state()) if session else self._send(404, {"error": "Unknown use case"})
             if path == "/api/camera/stream.mjpg":
                 return self._stream()
+            if path == "/api/twin":
+                return self._send(200, self._twin())
             return self._static(path)
 
         def do_POST(self):
@@ -60,6 +62,13 @@ def make_handler(camera, sessions):
             except RuntimeError as exc:
                 return self._send(409, {"error": str(exc), "state": session.state()})
             return self._send(200, session.state())
+
+        def _twin(self):
+            """Live robot state for the RoboDK digital twin."""
+            positions, age = joints.latest() if joints is not None else (None, None)
+            state = sessions["dishwashing"].state()
+            return {"joints_rad": positions, "joints_age_s": age, "gripper": state["gripper"],
+                    "run_id": state["run_id"], "status": state["status"], "step": state["step"]}
 
         def _static(self, path):
             target = (FRONTEND / ("index.html" if path in ("", "/") else path.lstrip("/"))).resolve()
@@ -98,6 +107,7 @@ def main():
 
     from ui.backend.camera import Camera
     from ui.backend.dishwashing import DishwashingSession
+    from ui.backend.joints import JointMonitor
 
     settings = configure_ros()
     points = settings["sort_points"]
@@ -105,12 +115,14 @@ def main():
     rospy.init_node("workcell_ui", anonymous=True, disable_signals=True)
     camera = Camera()
     camera.subscribe(settings["camera_topic"])
+    joints = JointMonitor()
+    joints.subscribe("/joint_states")
 
     names = sorted({points["observe"], points["lift"], points["via"], points["drop"], *points["picks"]})
     sessions = {"dishwashing": DishwashingSession(camera, points, lambda: MairaArm(names, speed=args.speed))}
 
     # Localhost only: anyone who can reach this page can move the robot.
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(camera, sessions))
+    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(camera, sessions, joints))
     server.daemon_threads = True
     print(f"Workcell UI ready: open http://localhost:{args.port}  (Ctrl+C to quit)", flush=True)
     try:

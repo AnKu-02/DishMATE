@@ -3,6 +3,7 @@
   "ros_ip": "192.168.2.99",
   "camera_topic": "/camera/color/image_raw",
   "classifier_python": "/root/.venvs/dishwashing-classifier/bin/python",
+  "robodk_station": "C:\\Users\\aimat\\Downloads\\MAiRA_Testing_Updated (1)\\maira_Pick_N_Place_dishwashing.rdk",
   "sort_points": {
     "observe": "GP156",
     "picks": ["GP157", "GP163"],

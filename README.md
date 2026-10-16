@@ -190,6 +190,17 @@ These commands print clean/dirty and never request robot movement. Accuracy stil
 needs evaluation with representative plates. The existing `--sort` mode has not
 been migrated to this two-environment workflow or validated on the real robot.
 
+## Run everything: UI + robot + RoboDK twin
+
+On Windows, double-click `run_dishwashing.bat` (or run
+`C:\RoboDK\Python-Embedded\python.exe run_dishwashing.py`). It starts the UI backend in
+WSL, opens RoboDK with the station in `settings.json` (`robodk_station`), opens the UI in
+the browser and mirrors the real robot into RoboDK: live joints from `/joint_states`,
+plates attach/detach with the real gripper and return to the rack on each new run.
+RoboDK stays in simulation mode. The robot only moves when Start is pressed in the UI.
+Ctrl+C in the launcher window stops the twin and the backend. Build or rebuild the
+station with `robodk_sim/export_gp_points.py` and `robodk_sim/build_station.py`.
+
 ## Workcell web UI
 
 `python -m ui.backend.server`, then open <http://localhost:8080>: live camera, Start /

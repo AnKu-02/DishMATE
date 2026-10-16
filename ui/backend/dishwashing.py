@@ -50,6 +50,8 @@ class DishwashingSession:
         self._cycle = 0
         self._counts = {"clean": 0, "dirty": 0}
         self._history = []
+        self._gripper = "unknown"  # last command sent: "open" or "closed" (for the RoboDK twin)
+        self._run_id = 0
 
     # ---- operator commands -------------------------------------------------
     def start(self):
@@ -59,6 +61,7 @@ class DishwashingSession:
             self._stop = self._stop_now = False
             self._resume.set()
             self._status, self._step, self._message, self._cycle = "starting", "Connecting to robot", "", 0
+            self._run_id += 1
             self._thread = threading.Thread(target=self._run, daemon=True)
             self._thread.start()
 
@@ -112,6 +115,8 @@ class DishwashingSession:
                 "threshold": THRESHOLD,
                 "camera_online": self.camera.online,
                 "sequence": {k: self.points[k] for k in ("observe", "picks", "lift", "via", "drop")},
+                "gripper": self._gripper,
+                "run_id": self._run_id,
             }
 
     # ---- worker ------------------------------------------------------------
@@ -136,6 +141,7 @@ class DishwashingSession:
         p = self.points
         self._move(arm, p["observe"], f"Moving to {p['observe']}")
         arm.open_gripper()
+        self._set(gripper="open")
         self._set(step="Taking photo")
         self.sleep(0.5)
         frame = self.camera.fresh_frame(time.monotonic())
@@ -150,11 +156,13 @@ class DishwashingSession:
         # From here the plate is in the gripper: a Stop request finishes the plate first.
         self._set(step="Gripping plate")
         arm.close_gripper()
+        self._set(gripper="closed")
         self.sleep(2.0)
         self._move(arm, p["lift"], f"Lifting ({p['lift']})", finishing=True)
         self._move(arm, p["via"], f"Moving to drop-off ({p['via']})", finishing=True)
         self._move(arm, p["drop"], f"Placing at {p['drop']}", finishing=True)
         arm.open_gripper()
+        self._set(gripper="open")
         self.sleep(5.0)
         self._move(arm, p["via"], f"Leaving drop-off ({p['via']})", finishing=True)
         self._move(arm, p["observe"], f"Returning to {p['observe']}", finishing=True)
