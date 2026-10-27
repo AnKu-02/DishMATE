@@ -81,7 +81,16 @@ bash tests/check_classifier.sh
 
 This runs the Python 3.10 model check without changing your active ROS environment
 or accessing the robot/camera. The helper removes ROS's Python 3.8 package paths
-from its subprocess. It checks model loading and synthetic inference, not accuracy.
+from its subprocess and exposes the venv's CUDA libraries. It checks model loading
+and synthetic inference, not accuracy. To install or repair TensorFlow GPU support,
+then validate it on the NVIDIA GPU, run:
+
+```bash
+bash setup/enable_tensorflow_cuda.sh
+```
+
+For direct classifier or training commands in WSL, use
+`bash setup/run_classifier_python.sh SCRIPT [ARGS...]` so CUDA remains available.
 Folder auto-activation continues to select the Python 3.8 ROS environment.
 
 To leave the Python environment, run `deactivate`. Use a fresh terminal when
