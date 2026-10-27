@@ -16,5 +16,5 @@ fi
 "$TOOLS_ENV/bin/uv" python install 3.10
 "$TOOLS_ENV/bin/uv" venv --python 3.10 --seed "$CLASSIFIER_ENV"
 "$TOOLS_ENV/bin/uv" pip install --python "$CLASSIFIER_ENV/bin/python" -r "$PROJECT_DIR/requirements.txt"
-"$CLASSIFIER_ENV/bin/python" -m pip check
-"$CLASSIFIER_ENV/bin/python" "$PROJECT_DIR/main_real.py" --check-model
+bash "$PROJECT_DIR/setup/enable_tensorflow_cuda.sh"
+bash "$PROJECT_DIR/tests/check_classifier.sh"

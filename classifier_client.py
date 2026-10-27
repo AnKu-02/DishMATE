@@ -7,11 +7,28 @@ import subprocess
 from settings import ROOT, load_settings
 
 
-def classify_image(path):
-    interpreter = load_settings()["classifier_python"]
+def _classifier_environment(interpreter):
     env = os.environ.copy()
     for key in ("PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"):
         env.pop(key, None)
+
+    env_dir = Path(interpreter).expanduser().parent.parent
+    nvidia_libs = sorted(env_dir.glob("lib/python*/site-packages/nvidia/*/lib"))
+    if nvidia_libs:
+        existing = env.get("LD_LIBRARY_PATH")
+        paths = [str(path) for path in nvidia_libs]
+        if existing:
+            paths.append(existing)
+        env["LD_LIBRARY_PATH"] = os.pathsep.join(paths)
+
+    bin_dir = str(Path(interpreter).expanduser().parent)
+    env["PATH"] = os.pathsep.join((bin_dir, env.get("PATH", "")))
+    return env
+
+
+def classify_image(path):
+    interpreter = load_settings()["classifier_python"]
+    env = _classifier_environment(interpreter)
     try:
         completed = subprocess.run(
             [interpreter, str(ROOT / "classify_image.py"), str(Path(path).resolve())],
