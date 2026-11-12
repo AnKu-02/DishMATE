@@ -41,6 +41,31 @@ clean/plate_18.png,blurred
 Excluded paths and reasons are recorded in the run report. Original images and
 annotations remain untouched.
 
+For a full-frame run across the current real-camera captures, the reviewed
+exclusion list is `classifier_exclusions.csv` (relative paths are under
+`captures/`). A preflight found 126 usable plate records across 18 physical IDs.
+This grouped split trains on 62 records, validates on 29, and tests on 35; the
+validation and test sets each include multiple plate IDs. The downloaded
+`Downloads/plates` set is kept out of this run because it has a different image
+domain and its 744-image test folder is unlabeled.
+
+From WSL, allow up to 120 epochs total (60 head + 60 fine-tuning); early stopping
+may finish sooner:
+
+```bash
+bash setup/run_classifier_python.sh train_classifier.py \
+	--source captures \
+	--exclusion-manifest classifier_exclusions.csv \
+	--run-tag robot_camera_fullframe_v1 \
+	--validation-plates plate_02 plate_19 \
+	--test-plates plate_03 plate_21 plate_22 plate_23 plate_24 plate_25 plate_26 \
+	--head-epochs 60 \
+	--fine-epochs 60
+```
+
+Each run saves a tagged weights file under `models/` and `training_curves.png`
+under its timestamped `training_runs/` folder.
+
 ## Training
 
 Ran on the Windows project's existing TensorFlow 2.21.0 CPU environment. Seed 42,
@@ -67,10 +92,13 @@ independent capture sessions. The gap between training and held-out performance
 indicates limited generalization. Do not use these results to authorize robot
 sorting automatically.
 
-Detailed manifest, epoch CSVs, per-image scores, and confusion matrices are in
-`training_runs/cnn_20261005_132253/` (local, ignored by Git). The saved weights were
-reloaded into the original inference architecture and checked for matching output;
-the original weights' SHA-256 was checked unchanged.
+Each training run saves `training_curves.png` with training/validation loss and
+accuracy by epoch. The vertical divider marks the fine-tuning phase; the star marks
+the selected best-validation-loss epoch. The report also records `best_epoch`.
+Detailed manifests, epoch CSVs, per-image scores, curves, and confusion matrices
+are in `training_runs/` (local, ignored by Git). The saved weights were reloaded
+into the original inference architecture and checked for matching output; the
+original weights' SHA-256 was checked unchanged.
 
 ## Additional folder dataset experiment — 2026-10-09
 
@@ -134,7 +162,7 @@ Full report: `training_runs/cnn_20261010_121221/report.json`.
 From the project folder in WSL (no camera or robot connection):
 
 ```bash
-env -u PYTHONPATH -u PYTHONHOME /root/.venvs/dishwashing-classifier/bin/python classify_image.py captures/2026-10-05/clean/plate_2.png --weights models/plate_cleanliness_cnn_20261005_132253.weights.h5
+bash setup/run_classifier_python.sh classify_image.py captures/2026-10-05/clean/plate_2.png --weights models/plate_cleanliness_cnn_20261005_132253.weights.h5
 ```
 
 This prints JSON with the label and dirty score. It does not append to results.csv.
@@ -143,7 +171,7 @@ The normal `main_real.py --classify` flow still uses the original model.
 To reproduce training in the classifier environment:
 
 ```bash
-env -u PYTHONPATH -u PYTHONHOME /root/.venvs/dishwashing-classifier/bin/python train_classifier.py --source captures/2026-10-05
+bash setup/run_classifier_python.sh train_classifier.py --source captures/2026-10-05
 ```
 
 Every run creates a new timestamped output. Numerical results may vary between
