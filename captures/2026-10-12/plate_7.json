@@ -1,0 +1,26 @@
+{
+  "schema_version": 2,
+  "image": "plate_7.png",
+  "image_width": 640,
+  "image_height": 480,
+  "objects": [
+    {
+      "plate_id": "plate_20",
+      "label": "clean",
+      "object_type": "plate",
+      "class_name": "clean_plate",
+      "bounding_box": {
+        "format": "xywh",
+        "units": "pixels",
+        "coordinates": [
+          309,
+          43,
+          293,
+          239
+        ]
+      }
+    }
+  ],
+  "all_dishes_reviewed": true,
+  "annotated_at": "2026-10-12T10:44:45.854346+02:00"
+}
