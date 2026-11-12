@@ -27,7 +27,7 @@ def main():
 
     settings = configure_ros()
     p = settings["sort_points"]
-    names = [p["observe"], *p["picks"], p["lift"], p["via"], p["drop"]]
+    names = [p["observe"], *p["picks"], p["lift"], p["via"], p["drop"], *p.get("dirty_drops", [])]
     rospy.init_node("export_gp_points", anonymous=True, disable_signals=True)
     db = DatabaseClient()
     robot = Robot()
@@ -37,7 +37,7 @@ def main():
         res, joints = db.get_joint_positions(name)
         if res.value < 0:
             raise SystemExit(f"{name} not found in the robot point database")
-        flange = robot.compute_forward_kinematics(list(joints))  # flange pose, no tool
+        flange = robot.compute_forward_kinematics(list(joints), target_frame="flange")  # no tool
         saved = robot.get_pose_in_world_frame_from_DB(name)       # TCP pose stored when taught
         tcp = [saved["position"][k] for k in "xyz"] + [saved["euler"][k] for k in "abc"]
         points[name] = {"joints_rad": list(joints),
@@ -56,7 +56,7 @@ def main():
                             "tcp_m_rad": list(robot.get_tcp_pose())},
             "frame": ("robot base frame, metres and radians [x, y, z, a, b, c]; flange from forward "
                       "kinematics, tcp as stored in the point database with the RG6 tool"),
-            "sequence": {k: p[k] for k in ("observe", "picks", "lift", "via", "drop")},
+            "sequence": {k: p[k] for k in ("observe", "picks", "lift", "via", "drop", "dirty_drops") if k in p},
             "points": points}
     OUTPUT.write_text(json.dumps(data, indent=2))
     print(f"Saved {OUTPUT}")

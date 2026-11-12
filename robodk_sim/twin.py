@@ -1,7 +1,9 @@
 """RoboDK digital twin: mirror the real MAiRA from the workcell UI backend into RoboDK.
 
 The RoboDK robot follows the live /joint_states; plates attach when the real gripper closes,
-detach when it opens, and return to the rack when a new run starts. RoboDK stays in
+detach when it opens, and return to the rack when a new run starts. Each classification from
+the real camera colours its plate (green clean / red dirty), shows the CLEAN or DIRTY sign above
+the dish rack and a message in RoboDK's status bar. RoboDK stays in
 simulation mode: nothing is ever sent from RoboDK to the real robot.
 
 Run with RoboDK's Python on Windows while the UI backend is running (run_dishwashing.py
@@ -14,11 +16,11 @@ import time
 from urllib.error import URLError
 from urllib.request import urlopen
 
-from robodk.robolink import (Robolink, ITEM_TYPE_FRAME, ITEM_TYPE_PROGRAM_PYTHON, ITEM_TYPE_ROBOT,
-                             ITEM_TYPE_TOOL, RUNMODE_SIMULATE)
+from robodk.robolink import (Robolink, ITEM_TYPE_FRAME, ITEM_TYPE_OBJECT, ITEM_TYPE_PROGRAM_PYTHON,
+                             ITEM_TYPE_ROBOT, ITEM_TYPE_TOOL, RUNMODE_SIMULATE)
 
-from build_station import (FINGERS_CLOSED, FINGERS_OPEN, FRAME_NAME, PLATE_DIAMETER, SIM_GRIPPER, TOOL_NAME,
-                           find_maira)
+from build_station import (FINGERS_CLOSED, FINGERS_OPEN, FRAME_NAME, LABEL_COLORS, PLATE_DIAMETER, SIGN_BOARD,
+                           SIGNS, SIM_GRIPPER, TOOL_NAME, find_maira)
 
 TWIN_URL = "http://localhost:8080/api/twin"
 PERIOD = 0.05          # 20 updates per second
@@ -51,6 +53,7 @@ class Twin:
         self.last_joints = None
         self.gripper = None
         self.run_id = None
+        self.result_id = None
 
     def update(self, state):
         joints = state.get("joints_rad")
@@ -64,6 +67,10 @@ class Twin:
             self.reset.RunProgram()
             print("New run: plates back in the rack", flush=True)
         self.run_id = state["run_id"]
+        result_id = state.get("result_id")
+        if self.result_id is not None and result_id != self.result_id and state.get("latest"):
+            self.show_result(state["latest"], state.get("sequence", {}).get("picks", []))
+        self.result_id = result_id
         if state["gripper"] != self.gripper:
             if self.fingers.Valid() and state["gripper"] in ("open", "closed"):
                 self.fingers.setJoints([FINGERS_CLOSED if state["gripper"] == "closed" else FINGERS_OPEN])
@@ -74,6 +81,22 @@ class Twin:
                 self.tool.DetachAll(self.frame)
                 print("Gripper opened: plate released", flush=True)
             self.gripper = state["gripper"]
+
+    def show_result(self, latest, picks):
+        """Colour the classified plate, show the matching sign and post the result in the status bar."""
+        label = latest["label"]
+        if latest.get("pick") in picks:
+            plate = self.RDK.Item(f"Plate {picks.index(latest['pick']) + 1}", ITEM_TYPE_OBJECT)
+            if plate.Valid():
+                plate.setColor(LABEL_COLORS[label])
+        for name, show in ((SIGNS["clean"], label == "clean"), (SIGNS["dirty"], label == "dirty"), (SIGN_BOARD, True)):
+            sign = self.RDK.Item(name, ITEM_TYPE_OBJECT)
+            if sign.Valid():
+                sign.setVisible(show)
+        place = f" -> {latest['place']}" if latest.get("place") else ""
+        message = f"{latest.get('pick', 'Plate')}: {label.upper()} (dirty score {latest['score']:.2f}){place}"
+        self.RDK.ShowMessage(message, False)
+        print(message, flush=True)
 
 
 def run(RDK, url=TWIN_URL, stop=lambda: False):
