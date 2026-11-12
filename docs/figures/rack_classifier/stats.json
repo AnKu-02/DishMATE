@@ -1,0 +1,104 @@
+{
+  "n": 63,
+  "dirty": 41,
+  "clean": 22,
+  "old": {
+    "tp": 5,
+    "tn": 11,
+    "fp": 11,
+    "fn": 36
+  },
+  "new": {
+    "tp": 41,
+    "tn": 20,
+    "fp": 2,
+    "fn": 0
+  },
+  "per_day": {
+    "2026-10-09": {
+      "n": 29,
+      "dirty": 24,
+      "old": 0.13793103448275862,
+      "new": 1.0
+    },
+    "2026-10-12": {
+      "n": 14,
+      "dirty": 7,
+      "old": 0.42857142857142855,
+      "new": 1.0
+    },
+    "2026-10-16": {
+      "n": 14,
+      "dirty": 7,
+      "old": 0.2857142857142857,
+      "new": 0.8571428571428571
+    },
+    "2026-10-20": {
+      "n": 6,
+      "dirty": 3,
+      "old": 0.3333333333333333,
+      "new": 1.0
+    }
+  },
+  "old_wrong": [
+    "captures/2026-10-09/plate_1.png",
+    "captures/2026-10-09/plate_2.png",
+    "captures/2026-10-09/plate_3.png",
+    "captures/2026-10-09/plate_4.png",
+    "captures/2026-10-09/plate_5.png",
+    "captures/2026-10-09/plate_6.png",
+    "captures/2026-10-09/plate_7.png",
+    "captures/2026-10-09/plate_8.png",
+    "captures/2026-10-09/plate_9.png",
+    "captures/2026-10-09/plate_10.png",
+    "captures/2026-10-09/plate_11.png",
+    "captures/2026-10-09/plate_12.png",
+    "captures/2026-10-09/plate_13.png",
+    "captures/2026-10-09/plate_16.png",
+    "captures/2026-10-09/plate_17.png",
+    "captures/2026-10-09/plate_18.png",
+    "captures/2026-10-09/plate_19.png",
+    "captures/2026-10-09/plate_20.png",
+    "captures/2026-10-09/plate_22.png",
+    "captures/2026-10-09/plate_24.png",
+    "captures/2026-10-09/plate_25.png",
+    "captures/2026-10-09/plate_26.png",
+    "captures/2026-10-09/plate_27.png",
+    "captures/2026-10-09/plate_28.png",
+    "captures/2026-10-09/plate_29.png",
+    "captures/2026-10-12/plate_1.png",
+    "captures/2026-10-12/plate_4.png",
+    "captures/2026-10-12/plate_7.png",
+    "captures/2026-10-12/plate_8.png",
+    "captures/2026-10-12/plate_9.png",
+    "captures/2026-10-12/plate_10.png",
+    "captures/2026-10-12/plate_12.png",
+    "captures/2026-10-12/plate_14.png",
+    "captures/2026-10-16/plate_2.png",
+    "captures/2026-10-16/plate_5.png",
+    "captures/2026-10-16/plate_6.png",
+    "captures/2026-10-16/plate_7.png",
+    "captures/2026-10-16/plate_8.png",
+    "captures/2026-10-16/plate_9.png",
+    "captures/2026-10-16/plate_10.png",
+    "captures/2026-10-16/plate_11.png",
+    "captures/2026-10-16/plate_12.png",
+    "captures/2026-10-16/plate_14.png",
+    "captures/2026-10-20/plate_1.png",
+    "captures/2026-10-20/plate_4.png",
+    "captures/2026-10-20/plate_5.png",
+    "captures/2026-10-20/plate_6.png"
+  ],
+  "new_wrong": [
+    "captures/2026-10-16/plate_1.png",
+    "captures/2026-10-16/plate_2.png"
+  ],
+  "plate5": {
+    "old": 0.041402846574783325,
+    "new": 0.887161131978186
+  },
+  "plate6": {
+    "old": 0.5024003386497498,
+    "new": 0.10597767975743387
+  }
+}
