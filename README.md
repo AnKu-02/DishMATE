@@ -199,11 +199,74 @@ These commands print clean/dirty and never request robot movement. Accuracy stil
 needs evaluation with representative plates. The existing `--sort` mode has not
 been migrated to this two-environment workflow or validated on the real robot.
 
+## Rack classifier (default)
+
+Photos taken at the robot's observe pose are classified by `rack_classifier.py`: the plate
+area is cropped, an ImageNet MobileNetV2 turns it into features, and a small last layer trained
+on labelled rack photos (`datasets/rack_labels.csv`) gives the dirty probability. On photos from
+capture days it had not seen it got 61 of 63 right (the original full-image CNN: 16 of 63).
+Add new labelled photos to the CSV and retrain in the classifier environment:
+
+```bash
+/root/.venvs/dishwashing-classifier/bin/python rack_classifier.py train
+```
+
+The original CNN is still available: `classify_image.py --cnn IMAGE`. The crop assumes the rack
+and camera pose stay where they are now; adjust `ROI` in `rack_classifier.py` if they move.
+
+## Run everything: UI + robot + RoboDK twin
+
+On Windows, double-click `run_dishwashing.bat` (or run
+`C:\RoboDK\Python-Embedded\python.exe run_dishwashing.py`). It starts the UI backend in
+WSL, opens RoboDK with the station in `settings.json` (`robodk_station`), opens the UI in
+the browser and mirrors the real robot into RoboDK: live joints from `/joint_states`,
+plates attach/detach with the real gripper and return to the rack on each new run.
+RoboDK stays in simulation mode. The robot only moves when Start is pressed in the UI.
+Ctrl+C in the launcher window stops the twin and the backend. Build or rebuild the
+station with `robodk_sim/export_gp_points.py` and `robodk_sim/build_station.py`.
+
 ## Workcell web UI
 
 `python -m ui.backend.server`, then open <http://localhost:8080>: live camera, Start /
 Pause / Stop, and clean/dirty results for the dishwashing use case. See
 [ui/README.md](ui/README.md).
+
+## Pick-and-place cycles
+
+From the activated ROS environment, with the robot in Automatic mode:
+
+```bash
+python pick_cycles.py --dry-run   # planned joint turns per move; no motion
+python pick_cycles.py --gui       # run both cycles with the live sorting window
+```
+
+Each pick point (default GP157, then GP163) runs: GP156 (open gripper, photo,
+classify) → pick (close, wait 2 s) → GP161 lift → GP165 → GP164 drop (open,
+wait 5 s) → GP165 → GP156. All plates go to the same drop point; nothing is sorted
+yet. Override points with `--picks`, `--lift`, `--via`, `--drop`. Without `--gui`
+it runs in the terminal only. In the window, Q stops after the current cycle.
+
+## Plate sorting GUI
+
+From the activated ROS environment:
+
+```bash
+python sort_gui.py           # camera + classify only (C), never moves the robot
+python sort_gui.py --robot   # Space runs sorting cycles
+```
+
+The window shows the live camera, a status light (green = clean, red = dirty,
+amber = working), the dirty score, clean/dirty counts for this session, and the
+current robot step. R resets the counts; Q quits (with --robot, after the
+current cycle finishes). Every classified photo is saved under `captures/` and
+logged to `captures/results.csv`.
+
+With `--robot`, each pick point in `sort_points` (settings.json) runs: observe
+point (open gripper, photo, classify) → pick (close, wait 2 s) → lift →
+`clean_place` or `dirty_place` (open, wait 5 s) → observe point. All points are
+taught on the pendant. `--robot` refuses to start until `clean_place` and
+`dirty_place` are set. The robot must be in Automatic mode; keep the e-stop in reach.
+On this RG6, `gripper("on")` opens and `gripper("off")` closes.
 
 ## Evaluate predictions
 

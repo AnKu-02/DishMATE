@@ -1,0 +1,21 @@
+{
+  "image": "plate_1.png",
+  "label": "dirty",
+  "plate_id": "gp145_plate_01",
+  "plate_id_provisional": true,
+  "object_type": "plate",
+  "class_name": "dirty_plate",
+  "image_width": 640,
+  "image_height": 480,
+  "bounding_box": {
+    "format": "xywh",
+    "units": "pixels",
+    "coordinates": [
+      268,
+      0,
+      352,
+      257
+    ],
+    "object_type": "plate"
+  }
+}

@@ -24,6 +24,48 @@ One record was excluded: `clean/plate_1.json` references `plate_6.png` rather th
 image content was found among the retained records. Plate ID consistency across
 clean/dirty captures is assumed from the supplied annotations.
 
+To omit reviewed bad images without deleting or moving source files, pass a CSV
+with `image,reason` columns. Image paths are relative to `--source`; unlisted
+images keep the existing behavior. For example:
+
+```csv
+image,reason
+dirty/plate_12.png,partially obscured
+clean/plate_18.png,blurred
+```
+
+```powershell
+.\.venv\Scripts\python.exe train_classifier.py --source captures\2026-10-05 --exclusion-manifest captures\2026-10-05\exclusions.csv
+```
+
+Excluded paths and reasons are recorded in the run report. Original images and
+annotations remain untouched.
+
+For a full-frame run across the current real-camera captures, the reviewed
+exclusion list is `classifier_exclusions.csv` (relative paths are under
+`captures/`). A preflight found 126 usable plate records across 18 physical IDs.
+This grouped split trains on 62 records, validates on 29, and tests on 35; the
+validation and test sets each include multiple plate IDs. The downloaded
+`Downloads/plates` set is kept out of this run because it has a different image
+domain and its 744-image test folder is unlabeled.
+
+From WSL, allow up to 120 epochs total (60 head + 60 fine-tuning); early stopping
+may finish sooner:
+
+```bash
+bash setup/run_classifier_python.sh train_classifier.py \
+	--source captures \
+	--exclusion-manifest classifier_exclusions.csv \
+	--run-tag robot_camera_fullframe_v1 \
+	--validation-plates plate_02 plate_19 \
+	--test-plates plate_03 plate_21 plate_22 plate_23 plate_24 plate_25 plate_26 \
+	--head-epochs 60 \
+	--fine-epochs 60
+```
+
+Each run saves a tagged weights file under `models/` and `training_curves.png`
+under its timestamped `training_runs/` folder.
+
 ## Training
 
 Ran on the Windows project's existing TensorFlow 2.21.0 CPU environment. Seed 42,
@@ -50,17 +92,77 @@ independent capture sessions. The gap between training and held-out performance
 indicates limited generalization. Do not use these results to authorize robot
 sorting automatically.
 
-Detailed manifest, epoch CSVs, per-image scores, and confusion matrices are in
-`training_runs/cnn_20261005_132253/` (local, ignored by Git). The saved weights were
-reloaded into the original inference architecture and checked for matching output;
-the original weights' SHA-256 was checked unchanged.
+Each training run saves `training_curves.png` with training/validation loss and
+accuracy by epoch. The vertical divider marks the fine-tuning phase; the star marks
+the selected best-validation-loss epoch. The report also records `best_epoch`.
+Detailed manifests, epoch CSVs, per-image scores, curves, and confusion matrices
+are in `training_runs/` (local, ignored by Git). The saved weights were reloaded
+into the original inference architecture and checked for matching output; the
+original weights' SHA-256 was checked unchanged.
+
+## Additional folder dataset experiment — 2026-10-09
+
+The folder dataset at `Downloads/plates/plates` contained 20 images in each of
+`train/cleaned` and `train/dirty`; its 744 unlabeled `test` images were not used.
+Run this layout with:
+
+```powershell
+.\.venv\Scripts\python.exe train_classifier.py --folder-dataset "C:\Users\aimat\Downloads\plates\plates"
+```
+
+Because the images have no physical plate IDs, this experiment used a seeded,
+stratified image-level split (12 per class for training, 4 per class for
+validation, 4 per class for test). The split may contain correlated views of the
+same physical plate, so its metrics are only a small pilot. Fine-tuned accuracy
+was 5/8 (62.5%) on the held-out split, below the original model's 6/8 (75%). On
+the known dirty GP145 capture, the original and new model both predicted clean;
+the new model's dirty score was lower (0.139 vs 0.285). Do not use this
+checkpoint for deployment or replace the default weights.
+
+Weights: `models/plate_cleanliness_cnn_20261009_100656.weights.h5`.
+Full split manifest and predictions: `training_runs/cnn_20261009_100656/report.json`.
+
+### Zoom/crop augmentation follow-up
+
+A second run added training-only random zoom (0.08, reflected edge fill) to the
+existing flips, rotations, and translations. Preprocessing and inference stayed
+unchanged: full-frame BGR, resize to 224x224, divide by 255. This simulates small
+crop/scale variation without changing the validation or test images. It again
+scored 5/8 (62.5%) on the same held-out split, and still called the known dirty
+GP145 image clean (dirty score 0.275; original score 0.285). The augmentation
+did not improve this failure case; do not promote this checkpoint either.
+
+Weights: `models/plate_cleanliness_cnn_20261009_165406.weights.h5`.
+Full report: `training_runs/cnn_20261009_165406/report.json`.
+
+### Cross-check on the known GP145 plate
+
+Offline inference on `captures/2026-10-09/plate_1.png` gave these raw dirty
+scores: original weights 0.285 (clean), October 5 project-capture fine-tune
+0.526 (dirty), October 9 folder fine-tune 0.139 (clean), and October 9 zoom
+fine-tune 0.275 (clean). The October 5 checkpoint is the strongest candidate
+for further evaluation on this camera domain. This is one known plate and does
+not justify changing the default model or using it for autonomous sorting.
+
+### Ground-truth box-crop experiment — 2026-10-10
+
+Trained with `--crop-to-box`, using reviewed bounding boxes for single- and
+multi-dish annotated images. The physical-plate split was preserved. The cropped
+checkpoint scored 8/28 (28.6%) on the held-out project-camera test set, below the
+original weights evaluated on the same box-cropped test inputs at 12/28 (42.9%).
+On the known GP145 plate crop, it still predicted clean (dirty score 0.406). This checkpoint is not an improvement. It
+also requires a matching box at inference, which the current live classifier
+does not provide; leave it experimental.
+
+Weights: `models/plate_cleanliness_cnn_20261010_121221.weights.h5`.
+Full report: `training_runs/cnn_20261010_121221/report.json`.
 
 ## Try the new model on a saved image
 
 From the project folder in WSL (no camera or robot connection):
 
 ```bash
-env -u PYTHONPATH -u PYTHONHOME /root/.venvs/dishwashing-classifier/bin/python classify_image.py captures/2026-10-05/clean/plate_2.png --weights models/plate_cleanliness_cnn_20261005_132253.weights.h5
+bash setup/run_classifier_python.sh classify_image.py captures/2026-10-05/clean/plate_2.png --weights models/plate_cleanliness_cnn_20261005_132253.weights.h5
 ```
 
 This prints JSON with the label and dirty score. It does not append to results.csv.
@@ -69,7 +171,7 @@ The normal `main_real.py --classify` flow still uses the original model.
 To reproduce training in the classifier environment:
 
 ```bash
-env -u PYTHONPATH -u PYTHONHOME /root/.venvs/dishwashing-classifier/bin/python train_classifier.py --source captures/2026-10-05
+bash setup/run_classifier_python.sh train_classifier.py --source captures/2026-10-05
 ```
 
 Every run creates a new timestamped output. Numerical results may vary between

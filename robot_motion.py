@@ -34,6 +34,23 @@ class MairaArm:
             self.points[name] = joints
         self.speed = speed
         self.robot = Robot()
+        self.check_gripper()
+
+    def check_gripper(self):
+        """Load the pendant's selected tool if needed; fail before any motion if the gripper is still missing."""
+        selected = self.robot.get_selected_tool_name()
+        active = getattr(self.robot, "current_tool", None)
+        if not getattr(self.robot, "gripper_name", None) or active != selected:
+            self.robot.set_tool(tool_name=selected)  # no motion: tells the controller which tool is mounted
+            self.robot.stop()
+            from neurapy.robot import Robot
+            self.robot = Robot()  # the gripper driver is read when connecting
+            active = getattr(self.robot, "current_tool", None)
+        if not getattr(self.robot, "gripper_name", None) or active != selected:
+            self.robot.stop()
+            raise RuntimeError(f"Gripper not ready: the pendant's selected tool is {selected!r} but the robot has "
+                               f"{active!r} active with no gripper loaded. On the pendant, select and activate the "
+                               f"{selected} tool again (or restart the robot program), then press Start.")
 
     def move(self, name):
         current = self.robot.get_current_joint_angles()

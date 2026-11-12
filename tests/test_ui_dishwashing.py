@@ -7,6 +7,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from ui.backend.dishwashing import DishwashingSession
+from ui.backend.joints import JointMonitor
 from ui.backend.server import make_handler
 
 POINTS = {"observe": "OBS", "picks": ["P1", "P2"], "lift": "LIFT", "via": "VIA", "drop": "DROP"}
@@ -186,6 +187,57 @@ class DishwashingSessionTest(unittest.TestCase):
         self.assertEqual(state["status"], "error")
         self.assertIn("Automatic", state["message"])
 
+    def test_gripper_state_and_run_id_follow_the_run(self):
+        gate = threading.Semaphore(0)
+        arm = FakeArm(gate)
+        s = session(arm)
+        self.assertEqual((s.state()["gripper"], s.state()["run_id"]), ("unknown", 0))
+        s.start()
+        gate.release()
+        gate.release()  # OBS, P1: the plate is gripped next
+        self.assertTrue(wait_for(lambda: s.state()["gripper"] == "closed"))
+        self.assertEqual(s.state()["run_id"], 1)
+        for _ in range(30):
+            gate.release()
+        s.join(2)
+        self.assertEqual(s.state()["gripper"], "open")
+        s.start()
+        s.join(2)
+        self.assertEqual(s.state()["run_id"], 2)
+
+    def test_dirty_plates_fill_the_dirty_drops_and_clean_plates_go_to_the_drop(self):
+        points = dict(POINTS, picks=["P1", "P2", "P3"], dirty_drops=["D1", "D2"])
+        arm = FakeArm()
+        s = DishwashingSession(FakeCamera(), points, lambda: arm, scores(0.9, 0.1, 0.8), sleep=lambda s: None)
+        s.start()
+        s.join(2)
+        dirty = lambda pick, drop: ["OBS", "open", pick, "close", "LIFT", drop, "open", "OBS"]
+        self.assertEqual(arm.calls, dirty("P1", "D1") + cycle("P2") + dirty("P3", "D2") + ["stop"])
+        self.assertEqual([h["place"] for h in reversed(s.state()["history"])], ["D1", "DROP", "D2"])
+        self.assertEqual(s.state()["status"], "finished")
+        self.assertEqual(s.state()["result_id"], 3)
+
+    def test_dirty_plate_with_full_dirty_rack_is_not_picked(self):
+        points = dict(POINTS, dirty_drops=["D1"])
+        arm = FakeArm()
+        s = DishwashingSession(FakeCamera(), points, lambda: arm, scores(0.9, 0.9), sleep=lambda s: None)
+        s.start()
+        s.join(2)
+        self.assertEqual(arm.calls, ["OBS", "open", "P1", "close", "LIFT", "D1", "open", "OBS", "OBS", "open", "stop"])
+        self.assertEqual(s.state()["status"], "error")
+        self.assertIn("dirty drop", s.state()["message"])
+
+    def test_dirty_drops_reset_on_each_start(self):
+        points = dict(POINTS, picks=["P1"], dirty_drops=["D1"])
+        arm = FakeArm()
+        s = DishwashingSession(FakeCamera(), points, lambda: arm, scores(0.9, 0.9), sleep=lambda s: None)
+        s.start()
+        s.join(2)
+        s.start()
+        s.join(2)
+        self.assertEqual(arm.calls.count("D1"), 2)
+        self.assertEqual(s.state()["status"], "finished")
+
     def test_commands_are_rejected_in_the_wrong_state(self):
         s = session(FakeArm())
         for command in (s.pause, s.resume, s.stop):
@@ -196,7 +248,9 @@ class DishwashingSessionTest(unittest.TestCase):
 class ServerTest(unittest.TestCase):
     def setUp(self):
         self.session = session(FakeArm())
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(FakeCamera(), {"dishwashing": self.session}))
+        self.joints = JointMonitor()
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0),
+                                          make_handler(FakeCamera(), {"dishwashing": self.session}, self.joints))
         self.server.daemon_threads = True
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
@@ -238,6 +292,17 @@ class ServerTest(unittest.TestCase):
         with self.assertRaises(HTTPError) as error:
             self.post("/api/dishwashing/pause")
         self.assertEqual(error.exception.code, 409)
+
+    def test_twin_reports_joints_gripper_and_run(self):
+        twin = json.loads(self.get("/api/twin")[2])
+        self.assertIsNone(twin["joints_rad"])
+        self.joints.put([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7])
+        self.post("/api/dishwashing/start")
+        self.session.join(2)
+        twin = json.loads(self.get("/api/twin")[2])
+        self.assertEqual(twin["joints_rad"], [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7])
+        self.assertLess(twin["joints_age_s"], 5)
+        self.assertEqual((twin["gripper"], twin["run_id"], twin["status"]), ("open", 1, "finished"))
 
     def test_camera_stream_sends_jpeg_parts(self):
         response = urlopen(self.base + "/api/camera/stream.mjpg", timeout=5)
