@@ -111,3 +111,24 @@ class TrainingDataTests(unittest.TestCase):
             self.assertEqual(counts, Counter({("train", "clean"): 1, ("train", "dirty"): 1,
                                               ("val", "clean"): 1, ("val", "dirty"): 1,
                                               ("test", "clean"): 1, ("test", "dirty"): 1}))
+
+    def test_single_object_sidecars_load_without_crop_mode(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for split in ("train", "val", "test"):
+                for label in ("clean", "dirty"):
+                    plate_id = f"{split}_{label}"
+                    image = root / f"{plate_id}.png"
+                    value = sum(ord(character) for character in plate_id) % 255
+                    cv2.imwrite(str(image), np.full((20, 30, 3), value, dtype=np.uint8))
+                    metadata = {"image": image.name, "image_width": 30, "image_height": 20,
+                                "objects": [{"plate_id": plate_id, "label": label,
+                                             "bounding_box": {"format": "xywh", "units": "pixels",
+                                                              "coordinates": [0, 0, 30, 20]}}]}
+                    image.with_suffix(".json").write_text(json.dumps(metadata))
+
+            records, excluded = load_records(root, ["val_clean", "val_dirty"],
+                                             ["test_clean", "test_dirty"])
+
+            self.assertEqual(len(records), 6)
+            self.assertEqual(excluded, [])

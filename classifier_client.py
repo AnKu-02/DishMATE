@@ -23,6 +23,8 @@ def _classifier_environment(interpreter):
 
     bin_dir = str(Path(interpreter).expanduser().parent)
     env["PATH"] = os.pathsep.join((bin_dir, env.get("PATH", "")))
+    # One fresh process per photo: GPU start-up costs ~28 s per plate, the CPU classifies in ~1 s.
+    env["CUDA_VISIBLE_DEVICES"] = ""
     return env
 
 

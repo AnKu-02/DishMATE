@@ -6,6 +6,7 @@ from datetime import datetime
 import hashlib
 import json
 import os
+import re
 import random
 from pathlib import Path
 
@@ -75,7 +76,7 @@ def load_records(source, validation_ids, test_ids, crop_to_box=False, exclusion_
             raise ValueError(f"Image dimensions disagree: {image}")
         objects = data.get("objects")
         if objects is not None:
-            if not crop_to_box:
+            if not crop_to_box and len(objects) > 1:
                 excluded.append({"metadata": str(path),
                                  "reason": "multi-object image requires --crop-to-box"})
                 continue
@@ -147,6 +148,48 @@ def load_folder_records(source, validation_fraction=0.2, test_fraction=0.2, seed
     return records, []
 
 
+def save_training_curves(head_history, fine_history, destination, run_name):
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    head = head_history.history
+    fine = fine_history.history
+    head_epochs = len(head["loss"])
+    epochs = list(range(1, head_epochs + len(fine["loss"]) + 1))
+    best_epoch = min(
+        range(1, head_epochs + 1), key=lambda epoch: head["val_loss"][epoch - 1])
+    best_val_loss = head["val_loss"][best_epoch - 1]
+    for offset, loss in enumerate(fine["val_loss"], head_epochs + 1):
+        if loss < best_val_loss:
+            best_epoch, best_val_loss = offset, loss
+
+    values = {
+        "loss": (head["loss"] + fine["loss"], head["val_loss"] + fine["val_loss"]),
+        "accuracy": (head["accuracy"] + fine["accuracy"],
+                     head["val_accuracy"] + fine["val_accuracy"]),
+    }
+    figure, axes = plt.subplots(1, 2, figsize=(11, 4), sharex=True)
+    for axis, (metric, (training, validation)) in zip(axes, values.items()):
+        axis.plot(epochs, training, label="Training")
+        axis.plot(epochs, validation, label="Validation")
+        axis.axvline(head_epochs + 0.5, color="gray", linestyle="--",
+                     label="Fine-tuning starts")
+        if metric == "loss":
+            axis.scatter([best_epoch], [best_val_loss], color="red", marker="*",
+                         s=100, label=f"Best validation loss (epoch {best_epoch})", zorder=3)
+        axis.set_title(metric.capitalize())
+        axis.set_xlabel("Epoch")
+        axis.set_ylabel(metric.capitalize())
+        axis.grid(True, alpha=0.25)
+        axis.legend()
+    figure.suptitle(f"Training curves: {run_name}")
+    figure.tight_layout()
+    figure.savefig(destination, dpi=160)
+    plt.close(figure)
+    return best_epoch
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sources = parser.add_mutually_exclusive_group()
@@ -156,6 +199,7 @@ def main():
                          help="dataset root with train/cleaned and train/dirty folders")
     parser.add_argument("--exclusion-manifest", type=Path,
                         help="CSV of images to omit, with image,reason columns")
+    parser.add_argument("--run-tag", help="short label included in checkpoint and report names")
     parser.add_argument("--crop-to-box", action="store_true",
                         help="crop annotated images to the ground-truth plate box before resizing")
     parser.add_argument("--validation-plates", nargs="+", default=["plate_02"])
@@ -164,6 +208,8 @@ def main():
     parser.add_argument("--fine-epochs", type=int, default=18)
     parser.add_argument("--threads", type=int, default=4)
     args = parser.parse_args()
+    if args.run_tag and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,49}", args.run_tag):
+        parser.error("--run-tag must be 1-50 letters, numbers, underscores, or hyphens")
     import cv2
     import numpy as np
     import tensorflow as tf
@@ -186,7 +232,8 @@ def main():
         split_method = "grouped by physical plate ID"
     if args.crop_to_box and any(record["bounding_box"] is None for record in records):
         parser.error("--crop-to-box requires annotated capture data with bounding boxes")
-    run = ROOT / "training_runs" / ("cnn_" + datetime.now().strftime("%Y%m%d_%H%M%S"))
+    run_name = "cnn_" + (args.run_tag + "_" if args.run_tag else "") + datetime.now().strftime("%Y%m%d_%H%M%S")
+    run = ROOT / "training_runs" / run_name
     run.mkdir(parents=True, exist_ok=False)
     (run / "manifest.json").write_text(json.dumps(records, indent=2))
     summary = {split: dict(Counter(r["label"] for r in records if r["split"] == split))
@@ -246,8 +293,10 @@ def main():
             layer.trainable = True
     model.compile(optimizer=tf.keras.optimizers.Adam(1e-5), loss="binary_crossentropy", metrics=["accuracy"])
     print("Phase 2: fine-tune last layers; BatchNormalization stays frozen", flush=True)
-    model.fit(train, validation_data=val, epochs=args.fine_epochs,
-              callbacks=callbacks("fine", head_best), verbose=2)
+    fine_history = model.fit(train, validation_data=val, epochs=args.fine_epochs,
+                             callbacks=callbacks("fine", head_best), verbose=2)
+    curve_path = run / "training_curves.png"
+    best_epoch = save_training_curves(history, fine_history, curve_path, run.name)
     model.load_weights(str(best))
 
     def evaluate(candidate, split):
@@ -266,6 +315,7 @@ def main():
                                 for r, s in zip(rows, scores)]}
 
     report = {"source": str(source), "split_counts": summary, "excluded": excluded,
+              "run_tag": args.run_tag,
               "exclusion_manifest": (str(args.exclusion_manifest.resolve())
                                      if args.exclusion_manifest else None),
               "split_method": split_method,
@@ -279,6 +329,7 @@ def main():
               "augmentation": "training only: horizontal flip, rotation 0.06, translation 0.04, zoom 0.08; reflect fill",
               "selection": "lowest validation binary crossentropy across both phases; fixed score threshold 0.5",
               "tensorflow": tf.__version__, "seed": 42,
+              "best_epoch": best_epoch, "training_curve": str(curve_path),
               "finetuned": {split: evaluate(model, split) for split in ("train", "val", "test")}}
     original = load_model()
     report["original"] = {split: evaluate(original, split) for split in ("val", "test")}
@@ -293,6 +344,7 @@ def main():
     report["weights"] = str(destination)
     (run / "report.json").write_text(json.dumps(report, indent=2))
     print("RESULT:", json.dumps({"weights": str(destination), "report": str(run / "report.json"),
+          "training_curve": str(curve_path), "best_epoch": best_epoch,
           "original_test_accuracy": report["original"]["test"]["accuracy"],
           "finetuned_test_accuracy": report["finetuned"]["test"]["accuracy"]}), flush=True)
 

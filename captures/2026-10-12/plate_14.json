@@ -1,0 +1,26 @@
+{
+  "schema_version": 2,
+  "image": "plate_14.png",
+  "image_width": 640,
+  "image_height": 480,
+  "objects": [
+    {
+      "plate_id": "plate_26",
+      "label": "dirty",
+      "object_type": "plate",
+      "class_name": "dirty_plate",
+      "bounding_box": {
+        "format": "xywh",
+        "units": "pixels",
+        "coordinates": [
+          331,
+          0,
+          248,
+          204
+        ]
+      }
+    }
+  ],
+  "all_dishes_reviewed": true,
+  "annotated_at": "2026-10-12T10:48:12.656823+02:00"
+}
