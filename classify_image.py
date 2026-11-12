@@ -8,16 +8,21 @@ import sys
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image")
-    parser.add_argument("--weights", help="optional alternative CNN weights; default remains the original model")
+    parser.add_argument("--weights", help="use this full-image CNN instead of the rack classifier")
+    parser.add_argument("--cnn", action="store_true", help="use the original full-image CNN instead of the rack classifier")
     args = parser.parse_args()
     import cv2
-    from main_real import load_model, predict_details
+    import rack_classifier
 
     frame = cv2.imread(args.image)
     if frame is None:
         raise RuntimeError(f"Cannot read image: {args.image}")
     with redirect_stdout(sys.stderr):
-        result = predict_details(frame, load_model(args.weights))
+        if args.cnn or args.weights or not rack_classifier.HEAD_PATH.exists():
+            from main_real import load_model, predict_details
+            result = dict(predict_details(frame, load_model(args.weights)), model="cnn")
+        else:
+            result = rack_classifier.predict(frame)
     print(json.dumps({**result, "image": args.image}))
 
 
