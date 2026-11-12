@@ -205,6 +205,39 @@ class DishwashingSessionTest(unittest.TestCase):
         s.join(2)
         self.assertEqual(s.state()["run_id"], 2)
 
+    def test_dirty_plates_fill_the_dirty_drops_and_clean_plates_go_to_the_drop(self):
+        points = dict(POINTS, picks=["P1", "P2", "P3"], dirty_drops=["D1", "D2"])
+        arm = FakeArm()
+        s = DishwashingSession(FakeCamera(), points, lambda: arm, scores(0.9, 0.1, 0.8), sleep=lambda s: None)
+        s.start()
+        s.join(2)
+        dirty = lambda pick, drop: ["OBS", "open", pick, "close", "LIFT", drop, "open", "OBS"]
+        self.assertEqual(arm.calls, dirty("P1", "D1") + cycle("P2") + dirty("P3", "D2") + ["stop"])
+        self.assertEqual([h["place"] for h in reversed(s.state()["history"])], ["D1", "DROP", "D2"])
+        self.assertEqual(s.state()["status"], "finished")
+        self.assertEqual(s.state()["result_id"], 3)
+
+    def test_dirty_plate_with_full_dirty_rack_is_not_picked(self):
+        points = dict(POINTS, dirty_drops=["D1"])
+        arm = FakeArm()
+        s = DishwashingSession(FakeCamera(), points, lambda: arm, scores(0.9, 0.9), sleep=lambda s: None)
+        s.start()
+        s.join(2)
+        self.assertEqual(arm.calls, ["OBS", "open", "P1", "close", "LIFT", "D1", "open", "OBS", "OBS", "open", "stop"])
+        self.assertEqual(s.state()["status"], "error")
+        self.assertIn("dirty drop", s.state()["message"])
+
+    def test_dirty_drops_reset_on_each_start(self):
+        points = dict(POINTS, picks=["P1"], dirty_drops=["D1"])
+        arm = FakeArm()
+        s = DishwashingSession(FakeCamera(), points, lambda: arm, scores(0.9, 0.9), sleep=lambda s: None)
+        s.start()
+        s.join(2)
+        s.start()
+        s.join(2)
+        self.assertEqual(arm.calls.count("D1"), 2)
+        self.assertEqual(s.state()["status"], "finished")
+
     def test_commands_are_rejected_in_the_wrong_state(self):
         s = session(FakeArm())
         for command in (s.pause, s.resume, s.stop):

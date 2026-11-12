@@ -110,7 +110,7 @@ function renderDishwashing() {
     const verdict = $("verdict");
     verdict.dataset.label = latest ? latest.label : "";
     verdict.textContent = latest ? (latest.label === "clean" ? "Clean" : "Dirty") : "No plate yet";
-    $("latest-meta").textContent = latest ? `${latest.time} · ${latest.pick}` : "";
+    $("latest-meta").textContent = latest ? `${latest.time} · ${latest.pick}${latest.place ? ` → ${latest.place}` : ""}` : "";
     const fill = $("meter-fill");
     fill.style.width = latest ? `${(latest.score * 100).toFixed(1)}%` : "0";
     fill.className = `meter-fill ${latest ? latest.label : ""}`;
@@ -128,7 +128,7 @@ function renderDishwashing() {
     history.replaceChildren(...state.history.map((item) => {
       const row = el("li");
       row.append(el("span", `tag ${item.label}`, item.label === "clean" ? "Clean" : "Dirty"),
-        el("span", "where", `${item.time} · ${item.pick}`), el("span", "val", item.score.toFixed(3)));
+        el("span", "where", `${item.time} · ${item.pick}${item.place ? ` → ${item.place}` : ""}`), el("span", "val", item.score.toFixed(3)));
       return row;
     }));
     $("history-empty").hidden = state.history.length > 0;
@@ -136,7 +136,10 @@ function renderDishwashing() {
     const sequence = $("sequence");
     if (!sequence.childElementCount) {
       const s = state.sequence;
-      const steps = [s.observe, s.picks.join(" / "), s.lift, s.via, s.drop, s.via, s.observe];
+      const dirty = (s.dirty_drops || []).join(" / ");
+      const steps = [s.observe, s.picks.join(" / "), s.lift,
+        dirty ? `clean: ${s.via} → ${s.drop} → ${s.via}  |  dirty: ${dirty}` : `${s.via} → ${s.drop} → ${s.via}`,
+        s.observe];
       steps.forEach((name, i) => {
         if (i) sequence.append(el("li", "sep", "→"));
         sequence.append(el("li", "", name));

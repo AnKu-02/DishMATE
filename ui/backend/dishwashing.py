@@ -1,7 +1,10 @@
-"""Dishwashing use case: classify each plate, then pick it and place it at the drop point.
+"""Dishwashing use case: classify each plate, then pick it and sort it.
 
-Per pick point: observe (open gripper, photo, classify) -> pick (close, wait 2 s) -> lift ->
-via -> drop (open, wait 5 s) -> via -> observe. Every plate goes to the same drop point.
+Per pick point: observe (open gripper, photo, classify) -> pick (close, wait 2 s) -> lift, then
+  clean: via -> drop (open, wait 5 s) -> via -> observe   (every clean plate goes to the drop point)
+  dirty: next free dirty drop (open, wait 5 s) -> observe  (first dirty plate to dirty_drops[0], ...)
+Without dirty_drops, dirty plates go to the drop point like clean ones. If a plate is dirty and
+every dirty drop is already used, the run ends before that plate is picked.
 
 Pause holds the robot still before its next move. Stop while running finishes the current
 plate (drop and return to the observe pose) so a plate is never left in the gripper; Stop
@@ -50,6 +53,8 @@ class DishwashingSession:
         self._cycle = 0
         self._counts = {"clean": 0, "dirty": 0}
         self._history = []
+        self._dirty_used = 0      # dirty drops filled in this run
+        self._result_id = 0       # increments with every classification (for the RoboDK twin)
         self._gripper = "unknown"  # last command sent: "open" or "closed" (for the RoboDK twin)
         self._run_id = 0
 
@@ -62,6 +67,7 @@ class DishwashingSession:
             self._resume.set()
             self._status, self._step, self._message, self._cycle = "starting", "Connecting to robot", "", 0
             self._run_id += 1
+            self._dirty_used = 0
             self._thread = threading.Thread(target=self._run, daemon=True)
             self._thread.start()
 
@@ -114,9 +120,11 @@ class DishwashingSession:
                 "history": list(self._history),
                 "threshold": THRESHOLD,
                 "camera_online": self.camera.online,
-                "sequence": {k: self.points[k] for k in ("observe", "picks", "lift", "via", "drop")},
+                "sequence": dict({k: self.points[k] for k in ("observe", "picks", "lift", "via", "drop")},
+                                 dirty_drops=list(self.points.get("dirty_drops", []))),
                 "gripper": self._gripper,
                 "run_id": self._run_id,
+                "result_id": self._result_id,
             }
 
     # ---- worker ------------------------------------------------------------
@@ -147,10 +155,15 @@ class DishwashingSession:
         frame = self.camera.fresh_frame(time.monotonic())
         self._set(step="Classifying")
         result = self.classify(frame)
-        result.update(time=datetime.now().strftime("%H:%M:%S"), pick=pick)
+        place = self._place_for(result["label"])
+        result.update(time=datetime.now().strftime("%H:%M:%S"), pick=pick, place=place)
         with self._lock:
             self._counts[result["label"]] += 1
             self._history = ([result] + self._history)[:HISTORY_LIMIT]
+            self._result_id += 1
+        if place is None:
+            raise RuntimeError(f"{pick} is dirty but every dirty drop ({', '.join(p['dirty_drops'])}) is "
+                               "already used. Empty the dishwasher rack and press Start again.")
         self._move(arm, pick, f"Picking at {pick}")
         self._checkpoint(finishing=False)  # last chance to stop or pause without a plate in the gripper
         # From here the plate is in the gripper: a Stop request finishes the plate first.
@@ -159,13 +172,28 @@ class DishwashingSession:
         self._set(gripper="closed")
         self.sleep(2.0)
         self._move(arm, p["lift"], f"Lifting ({p['lift']})", finishing=True)
-        self._move(arm, p["via"], f"Moving to drop-off ({p['via']})", finishing=True)
-        self._move(arm, p["drop"], f"Placing at {p['drop']}", finishing=True)
+        if place == p["drop"]:
+            self._move(arm, p["via"], f"Moving to drop-off ({p['via']})", finishing=True)
+            self._move(arm, place, f"Placing clean plate at {place}", finishing=True)
+        else:
+            self._move(arm, place, f"Placing dirty plate at {place}", finishing=True)
+            with self._lock:
+                self._dirty_used += 1
         arm.open_gripper()
         self._set(gripper="open")
         self.sleep(5.0)
-        self._move(arm, p["via"], f"Leaving drop-off ({p['via']})", finishing=True)
+        if place == p["drop"]:
+            self._move(arm, p["via"], f"Leaving drop-off ({p['via']})", finishing=True)
         self._move(arm, p["observe"], f"Returning to {p['observe']}", finishing=True)
+
+    def _place_for(self, label):
+        """Clean plates go to the drop point; dirty ones fill the dirty drops in order (None when full)."""
+        dirty_drops = self.points.get("dirty_drops") or []
+        if label != "dirty" or not dirty_drops:
+            return self.points["drop"]
+        with self._lock:
+            used = self._dirty_used
+        return dirty_drops[used] if used < len(dirty_drops) else None
 
     def _run(self):
         arm = None

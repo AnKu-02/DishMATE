@@ -10,6 +10,7 @@
     "lift": "GP161",
     "via": "GP165",
     "drop": "GP164",
+    "dirty_drops": ["GP177", "GP167"],
     "clean_place": null,
     "dirty_place": null
   }

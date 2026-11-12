@@ -68,7 +68,9 @@ def make_handler(camera, sessions, joints=None):
             positions, age = joints.latest() if joints is not None else (None, None)
             state = sessions["dishwashing"].state()
             return {"joints_rad": positions, "joints_age_s": age, "gripper": state["gripper"],
-                    "run_id": state["run_id"], "status": state["status"], "step": state["step"]}
+                    "run_id": state["run_id"], "status": state["status"], "step": state["step"],
+                    "result_id": state["result_id"], "latest": state["latest"],
+                    "sequence": state["sequence"]}
 
         def _static(self, path):
             target = (FRONTEND / ("index.html" if path in ("", "/") else path.lstrip("/"))).resolve()
@@ -118,7 +120,8 @@ def main():
     joints = JointMonitor()
     joints.subscribe("/joint_states")
 
-    names = sorted({points["observe"], points["lift"], points["via"], points["drop"], *points["picks"]})
+    names = sorted({points["observe"], points["lift"], points["via"], points["drop"], *points["picks"],
+                    *points.get("dirty_drops", [])})
     sessions = {"dishwashing": DishwashingSession(camera, points, lambda: MairaArm(names, speed=args.speed))}
 
     # Localhost only: anyone who can reach this page can move the robot.
