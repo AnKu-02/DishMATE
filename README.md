@@ -1,319 +1,141 @@
-# Dishwashing MAiRA
+<h1 align="center">DishMATE</h1>
 
-## Multiple dishes in one image
+<p align="center">
+  A collaborative robot that checks each plate with a camera and sorts it:<br>
+  dirty plates go into the dishwasher rack, clean plates go onto the stacking table.
+</p>
 
-The CNN still produces one label for a whole image. It cannot locate or separately
-classify multiple dishes. Multi-dish detector training requires one human-labelled
-box for **every visible dish**, including overlapping dishes.
+<p align="center">
+  <img src="docs/media/demo_real.gif" width="640" alt="NEURA MAiRA picking a plate and placing it in the dishwasher rack">
+</p>
 
-Annotate the 16 images directly inside the October 5 folder:
+<p align="center">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.8%20%7C%203.10-3776AB">
+  <img alt="ROS Noetic" src="https://img.shields.io/badge/ROS-Noetic-22314E">
+  <img alt="TensorFlow" src="https://img.shields.io/badge/TensorFlow-2.21-FF6F00">
+  <img alt="RoboDK" src="https://img.shields.io/badge/RoboDK-digital%20twin-6E4C9E">
+  <img alt="Robot" src="https://img.shields.io/badge/robot-NEURA%20MAiRA-2E7D9A">
+</p>
+
+---
+
+## Overview
+
+DishMATE runs on a NEURA MAiRA arm with an RG6 gripper. Plates wait in a mixed
+rack. For each one, the robot moves to an observation pose, takes a photo, and a
+small classifier decides whether the plate is clean or dirty. The robot then picks
+the plate up and places it in the right spot. Every step is mirrored live in a
+RoboDK digital twin, and an operator window shows the camera feed, the decision
+and a running count.
+
+<p align="center">
+  <img src="docs/media/system_overview.png" width="860" alt="Setup, perception and manipulation workflow, and operator interface">
+</p>
+
+## How it works
+
+**Perception.** The camera image is cropped to the plate area. A MobileNetV2
+backbone pretrained on ImageNet turns the crop into features, and a small final
+layer trained on labelled rack photos gives a dirty score. Plates scoring above
+0.5 are treated as dirty.
+
+**Manipulation.** Pick, observe and drop poses are taught on the pendant and
+stored in `settings.json`. Each cycle is: observe and classify, pick and lift,
+place at the clean or dirty point, then return to observe for the next plate.
+
+**Operator interface.** A desktop sorting window and a browser-based workcell UI
+both show the live camera, the classification result and the robot's current step.
+
+<p align="center">
+  <img src="docs/media/sort_gui.png" width="860" alt="Sorting window showing a dirty plate and a clean plate">
+</p>
+
+## Digital twin
+
+The RoboDK station follows the real robot's joints from `/joint_states`. Plates
+attach and detach in sync with the real gripper, so the twin shows where each
+plate went. The station is built from the same taught points the robot uses.
+
+<table>
+  <tr>
+    <td width="34%" align="center"><img src="docs/media/demo_twin.gif" width="260" alt="RoboDK simulation sorting a dirty and a clean plate"></td>
+    <td width="66%" align="center"><img src="docs/media/twin_routes.png" alt="Clean and dirty routes in the RoboDK station"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Simulated sorting run</sub></td>
+    <td align="center"><sub>Clean and dirty routes, front and side views</sub></td>
+  </tr>
+</table>
+
+More detail: [Sim-to-real guide](docs/SIM2REAL_GUIDE.md).
+
+## Results
+
+We tested the rack classifier on 63 photos from capture days it had not seen
+during training (41 dirty, 22 clean). It classified 61 of them correctly and caught
+all 41 dirty plates. The original full-image CNN got 16 of the same 63 right.
+
+<p align="center">
+  <img src="docs/media/method_comparison.png" width="760" alt="Accuracy of each classifier approach on unseen capture days">
+</p>
+
+| Classifier | Correct | Dirty plates caught |
+|---|---|---|
+| Original CNN, full image | 16 / 63 | 5 / 41 |
+| MobileNetV2 + new final layer, plate crop | **61 / 63** | **41 / 41** |
+
+These figures come from a small set of plates in one fixed setup. The crop
+assumes the rack and camera stay where they are now. See the
+[rack classifier report](docs/RACK_CLASSIFIER_REPORT_2026-10-20.pdf) for the full evaluation.
+
+## Getting started
+
+The robot side runs under WSL (Ubuntu 20.04, ROS Noetic, Python 3.8). The
+classifier runs in a separate Python 3.10 environment with TensorFlow.
 
 ```bash
-python annotate_dishes.py captures/2026-10-05
-```
-
-This command does not enter the existing clean/dirty subfolders. For each dish:
-
-1. Press **1** for clean or **2** for dirty. Occupied plates (packets/wrappers) count as dirty for this project's sorting task.
-2. Press **P** for plate (default), or **C** for cup.
-3. Press **B**, draw its bounding box, then Enter. C/Esc cancels drawing.
-4. Type its physical ID (for example `plate_01`) in the image window and press Enter.
-5. Repeat for every dish. **U** undoes/removes the last box if you made a mistake.
-6. Press **S** only when all dishes have correct boxes and labels. This saves and advances.
-
-**N** skips without saving; **Q/Esc** exits in the main view. Do not give two
-different dishes the same ID. Reuse an ID when the same dish appears in another
-photo. Keep boxes tight, and annotate each overlapping dish separately. Skip
-scenes where you cannot determine a dish's condition instead of guessing labels.
-
-Images remain unchanged. JSON now contains an `objects` list with each dish's
-class, ID and pixel bounding box. Existing single-object metadata is retained
-under `legacy_single_object` when converted. Boxed previews show all objects.
-The older single-object editor refuses these records so it cannot silently replace
-them with one box. Live `camera_viewer.py --annotate` is still single-object;
-use this saved-image editor for multi-dish scenes.
-
-After review, a YOLO-format exporter is available:
-
-```bash
-python export_detection_data.py captures/2026-10-05 datasets/dishes_v1
-```
-
-Export reads the selected folder only (add `--recursive` for subfolders), excludes previews, and stops if any image lacks a
-complete multi-object annotation. Review legacy folders with `annotate_dishes.py`
-separately (or `--recursive`) before including them. Export does not train a model
-or choose a split. Group images sharing plates/scenes into the same split; collect
-independent plate groups for validation and testing. Cropped-image CNN performance
-is also unverified; the fine-tuned CNN was trained on full frames.
-
-An initial fine-tuned version of the existing CNN is available. See
-[CNN training results](docs/CNN_TRAINING_2026-10-05.md) for weights, evaluation,
-limitations, and a command to test it. Default inference still uses the original model.
-
-## Activate the WSL environment
-
-Open Ubuntu-20.04 and run:
-
-```bash
+# in Ubuntu 20.04
 cd /mnt/c/Users/aimat/Desktop/Dishwashing_Maira
 source ./activate_wsl.sh
+bash tests/check_classifier.sh        # model loads and runs, no robot access
+
+python sort_gui.py                    # camera and classification only, no motion
+python sort_gui.py --robot            # Space starts sorting cycles
 ```
 
-The prompt should begin with `(dishwashing-maira)`. Verify the interpreter with:
+On Windows, `run_dishwashing.bat` starts the backend, the web UI and the RoboDK
+twin together. The robot only moves after you press Start in the UI.
 
-```bash
-which python
+Before running with `--robot`, put the robot in Automatic mode, set `clean_place`
+and `dirty_place` in `settings.json`, and keep the emergency stop within reach.
+
+The full instructions are in the **[usage guide](docs/USAGE.md)**. It covers
+environment setup, data capture and annotation, training, evaluation and
+pick-and-place options.
+
+## Repository layout
+
+```
+rack_classifier.py      plate-crop classifier (default)
+sort_gui.py             desktop sorting window, optional robot control
+pick_cycles.py          pick-and-place cycles
+run_dishwashing.py      launcher for UI, robot bridge and RoboDK twin
+camera_viewer.py        live camera, capture and annotation
+annotate_dishes.py      multi-dish bounding-box annotation
+train_classifier.py     CNN training pipeline
+robodk_sim/             RoboDK station builder and twin
+ui/                     workcell web UI (backend and frontend)
+setup/                  one-time environment setup scripts
+tests/                  automated tests and diagnostics
+docs/                   guides, reports and figures
 ```
 
-Expected path: `/root/.venvs/dishwashing-maira/bin/python`.
+Run the tests with `python -m unittest discover -s tests -v`.
 
-## Check the classifier (Python 3.10)
+## Documentation
 
-The classifier has a separate interpreter:
-`/root/.venvs/dishwashing-classifier/bin/python`.
-The ROS environment above remains on Python 3.8.
-
-From the project folder, check the model using:
-
-```bash
-bash tests/check_classifier.sh
-```
-
-This runs the Python 3.10 model check without changing your active ROS environment
-or accessing the robot/camera. The helper removes ROS's Python 3.8 package paths
-from its subprocess and exposes the venv's CUDA libraries. It checks model loading
-and synthetic inference, not accuracy. To install or repair TensorFlow GPU support,
-then validate it on the NVIDIA GPU, run:
-
-```bash
-bash setup/enable_tensorflow_cuda.sh
-```
-
-For direct classifier or training commands in WSL, use
-`bash setup/run_classifier_python.sh SCRIPT [ARGS...]` so CUDA remains available.
-Folder auto-activation continues to select the Python 3.8 ROS environment.
-
-To leave the Python environment, run `deactivate`. Use a fresh terminal when
-switching ROS projects, since deactivation does not undo ROS environment settings.
-
-See [Camera setup](docs/CAMERA_SETUP.md) for camera checks and environment details.
-
-## Live camera viewer
-
-From the project folder with the Python 3.8 ROS environment active, run:
-
-```bash
-python camera_viewer.py --item plate
-```
-
-- The center crosshair helps position objects in the camera view.
-- Press **S** to save an image without the crosshair or text overlays.
-- Press **Q** or **Esc** to exit.
-- Use `--item cup` for cup filenames.
-
-Images save under `captures/YYYY-MM-DD/` as `plate_1.png`, `plate_2.png`, or
-`cup_1.png`, with separate numbering per item and date. The viewer performs no
-classification or robot movement.
-
-With `--label dirty` or `--label clean`, the viewer saves into that date's `dirty/`
-or `clean/` subfolder, with separate numbering in each. Images and matching JSON
-files stay together. Earlier captures are not moved.
-Annotated live captures also save `previews/plate_N_boxed.png` inside that class
-folder, showing the box, class name and plate ID. These previews are for review
-only; use the original PNG and JSON for training. Folder annotation skips previews.
-
-To collect dirty plates with boxes first:
-
-```bash
-python camera_viewer.py --interval 10 --annotate --item plate --label dirty --plate-id plate_01
-```
-
-Wait for the frozen frame, then left-click and drag from one corner to the opposite
-corner around the entire plate. Release the mouse and press Enter/Space to save
-the image and annotation. C/Esc skips the frozen capture. The next 10-second wait
-begins after saving/skipping. Press Q in the live view to quit (if currently drawing,
-press C first to return to live view). S starts a capture early from the live view.
-
-Stop and restart with `--plate-id plate_02`, etc. when switching physical plates.
-For clean examples, restart with `--label clean`, keeping the same ID for the
-same physical plate. The filename counter is not the physical plate ID. Each JSON
-records the supplied cleanliness label, object type, class name (`dirty_plate` or
-`clean_plate`), physical plate ID, and bounding box. This is manual labelling, not
-a prediction. Capture one plate per image.
-
-Camera and network defaults are in `settings.json`. Use `--topic` to override
-the camera topic. Live viewing and image saving were confirmed on 2026-10-02.
-Displaying the window requires working WSL GUI/WSLg support.
-
-## Capture and classify (no robot movement)
-
-For dataset collection, automatically save every 10 seconds:
-
-```bash
-python camera_viewer.py --interval 10 --item plate --label clean --plate-id blue_printed_01
-```
-
-The first automatic capture occurs about 10 seconds after the feed appears.
-Keep the plate still at capture time and move your hands out of view. Press Q/Esc
-to stop. Stale frames are skipped; missed captures are not saved in a burst.
-Manual S capture still works without resetting the automatic timer.
-The label applies to every image saved during this run. Stop and restart with
-`--label dirty` when changing to dirty examples, keeping the same physical plate ID.
-Omit `--label` and `--plate-id` for unlabelled capture.
-
-Labelled images have a matching JSON file containing the human label, physical
-plate ID, session ID, timestamp and topic. This does not run classification or
-write prediction results to the CSV. Review blurry, empty, or hand-obscured frames
-before training. Keep photos of the same physical plate together when splitting
-training and testing to avoid testing on nearly duplicate training examples.
-
-### Single-image classification
-
-To annotate incoming captures immediately, add `--annotate`:
-
-```bash
-python camera_viewer.py --interval 10 --annotate --label clean --plate-id blue_printed_01
-```
-
-Every capture freezes the image. Drag a box around the whole plate and press
-Enter/Space to save the image and its labelled bounding box, or C/Esc to skip
-without saving. The next 10-second wait starts after saving or skipping, so
-annotation time never causes queued captures. S also starts a manual capture.
-Q/Esc exits when back in the live view. Stop and restart with `--label dirty`
-when the plate's condition changes. Original images are saved without overlays.
-
-From the activated ROS environment:
-
-```bash
-python main_real.py --ros --classify
-```
-
-To classify an existing image without accessing the camera:
-
-```bash
-python main_real.py --image captures/2026-10-02/plate_2.png
-```
-
-The ROS process uses Python 3.8; classification runs separately in Python 3.10.
-These commands print clean/dirty and never request robot movement. Accuracy still
-needs evaluation with representative plates. The existing `--sort` mode has not
-been migrated to this two-environment workflow or validated on the real robot.
-
-## Rack classifier (default)
-
-Photos taken at the robot's observe pose are classified by `rack_classifier.py`: the plate
-area is cropped, an ImageNet MobileNetV2 turns it into features, and a small last layer trained
-on labelled rack photos (`datasets/rack_labels.csv`) gives the dirty probability. On photos from
-capture days it had not seen it got 61 of 63 right (the original full-image CNN: 16 of 63).
-Add new labelled photos to the CSV and retrain in the classifier environment:
-
-```bash
-/root/.venvs/dishwashing-classifier/bin/python rack_classifier.py train
-```
-
-The original CNN is still available: `classify_image.py --cnn IMAGE`. The crop assumes the rack
-and camera pose stay where they are now; adjust `ROI` in `rack_classifier.py` if they move.
-
-## Run everything: UI + robot + RoboDK twin
-
-On Windows, double-click `run_dishwashing.bat` (or run
-`C:\RoboDK\Python-Embedded\python.exe run_dishwashing.py`). It starts the UI backend in
-WSL, opens RoboDK with the station in `settings.json` (`robodk_station`), opens the UI in
-the browser and mirrors the real robot into RoboDK: live joints from `/joint_states`,
-plates attach/detach with the real gripper and return to the rack on each new run.
-RoboDK stays in simulation mode. The robot only moves when Start is pressed in the UI.
-Ctrl+C in the launcher window stops the twin and the backend. Build or rebuild the
-station with `robodk_sim/export_gp_points.py` and `robodk_sim/build_station.py`.
-
-## Workcell web UI
-
-`python -m ui.backend.server`, then open <http://localhost:8080>: live camera, Start /
-Pause / Stop, and clean/dirty results for the dishwashing use case. See
-[ui/README.md](ui/README.md).
-
-## Pick-and-place cycles
-
-From the activated ROS environment, with the robot in Automatic mode:
-
-```bash
-python pick_cycles.py --dry-run   # planned joint turns per move; no motion
-python pick_cycles.py --gui       # run both cycles with the live sorting window
-```
-
-Each pick point (default GP157, then GP163) runs: GP156 (open gripper, photo,
-classify) → pick (close, wait 2 s) → GP161 lift → GP165 → GP164 drop (open,
-wait 5 s) → GP165 → GP156. All plates go to the same drop point; nothing is sorted
-yet. Override points with `--picks`, `--lift`, `--via`, `--drop`. Without `--gui`
-it runs in the terminal only. In the window, Q stops after the current cycle.
-
-## Plate sorting GUI
-
-From the activated ROS environment:
-
-```bash
-python sort_gui.py           # camera + classify only (C), never moves the robot
-python sort_gui.py --robot   # Space runs sorting cycles
-```
-
-The window shows the live camera, a status light (green = clean, red = dirty,
-amber = working), the dirty score, clean/dirty counts for this session, and the
-current robot step. R resets the counts; Q quits (with --robot, after the
-current cycle finishes). Every classified photo is saved under `captures/` and
-logged to `captures/results.csv`.
-
-With `--robot`, each pick point in `sort_points` (settings.json) runs: observe
-point (open gripper, photo, classify) → pick (close, wait 2 s) → lift →
-`clean_place` or `dirty_place` (open, wait 5 s) → observe point. All points are
-taught on the pendant. `--robot` refuses to start until `clean_place` and
-`dirty_place` are set. The robot must be in Automatic mode; keep the e-stop in reach.
-On this RG6, `gripper("on")` opens and `gripper("off")` closes.
-
-## Evaluate predictions
-
-Supply the actual label when testing a plate:
-
-```bash
-python main_real.py --ros --classify --expected clean
-python main_real.py --image captures/2026-10-02/plate_2.png --expected dirty
-```
-
-Each successful `--classify` or `--image` run appends a row to
-`captures/results.csv`: timestamp, image path, prediction, dirty score, expected
-label, and whether they match. Without `--expected`, the expected and match fields
-stay blank. Rechecking an image adds a new row. The score is the model's raw
-sigmoid output: above 0.5 means dirty, otherwise clean; it is not a validated
-confidence percentage. The expected label never changes the prediction.
-The CSV is local and excluded from Git along with captures.
-
-## Annotate saved images
-
-In the project environment, open a day's captures:
-
-```bash
-python annotate_images.py captures/2026-10-03
-```
-
-You can also supply one image path. Press **B** and drag a box around the whole
-plate or cup, then **Enter** to confirm (C cancels drawing). Press **S** to save
-and advance, **N** to skip without saving, or **Q/Esc** to quit. Unsaved changes
-are discarded when skipping or quitting. Existing boxes are displayed for review;
-B replaces the box. This initial tool supports one object per image.
-
-Annotations are written into the image's matching JSON file. Existing clean/dirty
-labels, plate IDs, and session information are preserved; unlabelled images stay
-unlabelled. The box records object type and `[x, y, width, height]` in original-image
-pixels, measured from the top-left corner. Original images are never modified.
-Object type comes from the existing annotation or plate/cup filename prefix;
-`--item plate` or `--item cup` overrides it. The tool requires GUI/WSLg support,
-but does not connect to ROS, the camera, or the robot. Boxes are saved annotations
-only; the classifier still uses full images until crop preprocessing is added.
-
-## Folder layout
-
-- `captures/`: camera images.
-- `tests/`: automated tests and diagnostic scripts.
-- `models/`: trained weights.
-- `docs/`: guides and deployment PDF.
-- `setup/`: one-time environment setup scripts.
-
-Run automated tests from the project folder: `python -m unittest discover -s tests -v`.
+- [Usage guide](docs/USAGE.md)
+- [Camera setup](docs/CAMERA_SETUP.md)
+- [Sim-to-real guide](docs/SIM2REAL_GUIDE.md)
+- [CNN training results](docs/CNN_TRAINING_2026-10-05.md)
+- [Workcell UI](ui/README.md)
