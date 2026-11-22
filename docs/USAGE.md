@@ -310,13 +310,3 @@ is also unverified; the fine-tuned CNN was trained on full frames.
 An initial fine-tuned version of the existing CNN is available. See
 [CNN training results](CNN_TRAINING_2026-10-05.md) for weights, evaluation,
 limitations, and a command to test it. Default inference still uses the original model.
-
-## Folder layout
-
-- `captures/`: camera images.
-- `tests/`: automated tests and diagnostic scripts.
-- `models/`: trained weights.
-- `docs/`: guides and deployment PDF.
-- `setup/`: one-time environment setup scripts.
-
-Run automated tests from the project folder: `python -m unittest discover -s tests -v`.

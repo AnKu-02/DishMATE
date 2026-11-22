@@ -21,20 +21,18 @@
 
 ## Overview
 
-DishMATE runs on a NEURA MAiRA arm with an RG6 gripper. Plates wait in a mixed
-rack. For each one, the robot moves to an observation pose, takes a photo, and a
-small classifier decides whether the plate is clean or dirty. The robot then picks
-the plate up and places it in the right spot. Every step is mirrored live in a
-RoboDK digital twin, and an operator window shows the camera feed, the decision
-and a running count.
+DishMATE runs on a NEURA MAiRA arm with an RG6 gripper. It combines a camera-based
+clean/dirty classifier, taught pick-and-place motions, an operator interface and a
+live RoboDK digital twin.
 
 <p align="center">
-  <img src="docs/media/system_overview.png" width="860" alt="Setup, perception and manipulation workflow, and operator interface">
+  <img src="docs/media/system_overview.png" width="860" alt="Experimental setup and the perception and manipulation workflow">
 </p>
 
 ## How it works
 
-**Perception.** The camera image is cropped to the plate area. A MobileNetV2
+**Perception.** Plates wait in a mixed rack. At the observation pose, the robot
+takes a photo, which is cropped to the plate area. A MobileNetV2
 backbone pretrained on ImageNet turns the crop into features, and a small final
 layer trained on labelled rack photos gives a dirty score. Plates scoring above
 0.5 are treated as dirty.
@@ -44,7 +42,8 @@ stored in `settings.json`. Each cycle is: observe and classify, pick and lift,
 place at the clean or dirty point, then return to observe for the next plate.
 
 **Operator interface.** A desktop sorting window and a browser-based workcell UI
-both show the live camera, the classification result and the robot's current step.
+both show the live camera, the dirty score, a running clean/dirty count and the
+robot's current step.
 
 <p align="center">
   <img src="docs/media/sort_gui.png" width="860" alt="Sorting window showing a dirty plate and a clean plate">
@@ -67,22 +66,15 @@ plate went. The station is built from the same taught points the robot uses.
   </tr>
 </table>
 
-More detail: [Sim-to-real guide](docs/SIM2REAL_GUIDE.md).
-
 ## Results
 
-We tested the rack classifier on 63 photos from capture days it had not seen
-during training (41 dirty, 22 clean). It classified 61 of them correctly and caught
-all 41 dirty plates. The original full-image CNN got 16 of the same 63 right.
+We compared five classifier approaches on 63 photos from capture days not seen
+during training (41 dirty, 22 clean). The chosen plate-crop classifier caught all
+41 dirty plates; its two errors were clean plates marked as dirty.
 
 <p align="center">
   <img src="docs/media/method_comparison.png" width="760" alt="Accuracy of each classifier approach on unseen capture days">
 </p>
-
-| Classifier | Correct | Dirty plates caught |
-|---|---|---|
-| Original CNN, full image | 16 / 63 | 5 / 41 |
-| MobileNetV2 + new final layer, plate crop | **61 / 63** | **41 / 41** |
 
 These figures come from a small set of plates in one fixed setup. The crop
 assumes the rack and camera stay where they are now. See the
